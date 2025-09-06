@@ -1,0 +1,168 @@
+-- Single LocalScript: download your FrozeHub, run it, then add a draggable Toggle button
+-- Paste this into a LocalScript (StarterPlayerScripts or equivalent client-side)
+
+local URL = "https://raw.githubusercontent.com/KieuroBeep/FrozeHubExternalScriptLuaProtected/refs/heads/main/YoToomanyAtempentsTryAgain"
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Download & execute remote FrozeHub script (wrapped in pcall for safety)
+local okFetch, sourceOrErr = pcall(function()
+    return game:HttpGet(URL, true)
+end)
+
+if not okFetch then
+    warn("[Choppa] Failed to fetch FrozeHub script:", sourceOrErr)
+else
+    local okExec, execErr = pcall(function()
+        -- run the fetched script
+        local fn = loadstring(sourceOrErr)
+        if type(fn) == "function" then
+            fn()
+        else
+            error("loadstring did not return a function")
+        end
+    end)
+    if not okExec then
+        warn("[Choppa] Error executing FrozeHub script:", execErr)
+    else
+        print("[Choppa] FrozeHub script executed.")
+    end
+end
+
+-- Wait briefly for FrozeHub GUI to appear (tries PlayerGui then CoreGui)
+local function findFrozeGui()
+    local g = PlayerGui:FindFirstChild("FrozeHub") or game:GetService("CoreGui"):FindFirstChild("FrozeHub")
+    return g
+end
+
+local targetGui = nil
+local timeout = 50 -- 50 * 0.1 = 5 seconds
+for i = 1, timeout do
+    targetGui = findFrozeGui()
+    if targetGui then break end
+    wait(0.1)
+end
+
+-- Create Toggle button GUI
+local ToggleScreenGui = Instance.new("ScreenGui")
+ToggleScreenGui.Name = "FrozeToggleGui"
+ToggleScreenGui.ResetOnSpawn = false
+ToggleScreenGui.Parent = PlayerGui
+
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "Toggle"
+ToggleButton.Parent = ToggleScreenGui
+ToggleButton.AnchorPoint = Vector2.new(0, 0)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(30, 200, 30)
+ToggleButton.Position = UDim2.new(0.02, 0, 0.02, 0)
+ToggleButton.Size = UDim2.new(0, 160, 0, 40)
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.Text = "Toggle FrozeHub (ON)"
+ToggleButton.TextColor3 = Color3.fromRGB(255,255,255)
+ToggleButton.TextSize = 16
+ToggleButton.AutoButtonColor = true
+ToggleButton.ZIndex = 50
+
+-- Dragging behavior
+local dragging, dragInput, dragStart, startPos
+local function update(input)
+    local delta = input.Position - dragStart
+    ToggleButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+        startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+ToggleButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = ToggleButton.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+ToggleButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
+-- Helper: toggle visibility robustly (tries .Enabled, otherwise toggles Visible on GuiObjects)
+local function setGuiVisible(gui, visible)
+    if not gui then return end
+    local ok = pcall(function() gui.Enabled = visible end)
+    if not ok then
+        for _, obj in ipairs(gui:GetDescendants()) do
+            if obj:IsA("GuiObject") and not obj:IsDescendantOf(ToggleScreenGui) then
+                pcall(function() obj.Visible = visible end)
+            end
+        end
+    end
+end
+
+-- Initialize toggle state & button text
+local guiVisible = true
+if targetGui then
+    local okGet, v = pcall(function() return targetGui.Enabled end)
+    if okGet and type(v) == "boolean" then
+        guiVisible = v
+    else
+        -- infer from first GuiObject descendant
+        for _, d in ipairs(targetGui:GetDescendants()) do
+            if d:IsA("GuiObject") then
+                local safe, val = pcall(function() return d.Visible end)
+                if safe and type(val) == "boolean" then guiVisible = val break end
+            end
+        end
+    end
+    ToggleButton.Text = guiVisible and "Toggle FrozeHub (ON)" or "Toggle FrozeHub (OFF)"
+    ToggleButton.BackgroundColor3 = guiVisible and Color3.fromRGB(30,200,30) or Color3.fromRGB(200,30,30)
+else
+    ToggleButton.Text = "No FrozeHub found (Click to retry)"
+    ToggleButton.BackgroundColor3 = Color3.fromRGB(160,160,160)
+    warn("[Choppa] FrozeHub GUI wasn't found yet. The toggle will try to find it when you click.")
+end
+
+-- Click handler: toggle or refind target if missing
+ToggleButton.MouseButton1Click:Connect(function()
+    -- try to get (or refresh) the target GUI
+    if not targetGui or not targetGui.Parent then
+        for i = 1, timeout do
+            targetGui = findFrozeGui()
+            if targetGui then break end
+            wait(0.1)
+        end
+    end
+
+    if not targetGui then
+        ToggleButton.Text = "No FrozeHub found"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(160,160,160)
+        warn("[Choppa] Still can't find FrozeHub. Make sure the remote script created it and that this is running client-side.")
+        return
+    end
+
+    guiVisible = not guiVisible
+    setGuiVisible(targetGui, guiVisible)
+
+    if guiVisible then
+        ToggleButton.Text = "Toggle FrozeHub (ON)"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(30,200,30)
+        print("[Choppa] FrozeHub shown")
+    else
+        ToggleButton.Text = "Toggle FrozeHub (OFF)"
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(200,30,30)
+        print("[Choppa] FrozeHub hidden")
+    end
+end)
